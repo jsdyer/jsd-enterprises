@@ -75,12 +75,14 @@ function render_guide(array $guide): void
             <?php if (isset($section['code'])): ?><pre><code><?= e($section['code']) ?></code></pre><?php endif; ?>
         </section>
         <?php endforeach; ?>
+        <?php if (!empty($guide['sources'])): ?>
         <section class="article-sources">
             <h2>Sources</h2>
             <ul><?php foreach ($guide['sources'] as $source): ?>
                 <li><a class="text-link" href="<?= e($source['url']) ?>"><?= e($source['label']) ?> <?= icon('external', 15) ?></a></li>
             <?php endforeach; ?></ul>
         </section>
+        <?php endif; ?>
     </article>
     <?php
 }

@@ -136,6 +136,7 @@ h1, h2, h3, p { margin: 0; }
 .symbol-result-code { font-size: 11px; font-weight: 700; color: #d4c8ff; flex: none; }
 .symbol-result-name { font-size: 11px; color: var(--subtle); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .account-link { display: inline-flex; min-height: 38px; align-items: center; gap: 7px; border: 1px solid var(--line); border-radius: 8px; padding: 0 12px; color: var(--subtle); font-size: 12px; font-weight: 630; }
+.account-link span { max-width: 13ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .account-link:hover { color: var(--text); border-color: #5e527e; }
 
 .main-content { width: 100%; max-width: 1600px; margin: 0 auto; padding: 29px clamp(20px, 2.65vw, 43px) 42px; flex: 1; }
@@ -390,3 +391,6 @@ tbody tr:hover { background: #1d2033; }
 @media (max-width: 410px) {
     .footer { flex-wrap: wrap; }
 }
+.market-notice { color: #ddceff; border-color: #53446f; background: #2b243e; }
+.market-notice.market-warning { color: #f8d5a5; border-color: #755638; background: #3e3028; }
+.market-notice strong { margin-right: 4px; }

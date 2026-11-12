@@ -121,7 +121,8 @@ function market_history(string $symbol, array $instrument): ?array
         return $histories[$symbol];
     }
     if (market_mode() === 'licensed') {
-        return $histories[$symbol] = market_licensed_history($symbol, $instrument['currency']);
+        $feed = market_licensed_feed($symbol, $instrument['currency']);
+        return $histories[$symbol] = $feed['history'];
     }
     return $histories[$symbol] = [
         'mode' => 'demo',
@@ -130,26 +131,46 @@ function market_history(string $symbol, array $instrument): ?array
     ];
 }
 
-function market_licensed_history(string $symbol, string $currency): ?array
+/**
+ * Keep public prices and operator diagnostics on the same validation path.
+ */
+function market_licensed_feed(string $symbol, string $currency): array
 {
     $directory = trim((string) getenv('JSD_MARKET_DATA_DIR'));
     $file = rtrim($directory, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . rawurlencode($symbol) . '.json';
+    if (!is_dir($directory) || !is_executable($directory)) {
+        return ['status' => 'invalid', 'issue' => 'The configured feed directory cannot be accessed.', 'history' => null];
+    }
+    if (!file_exists($file) && !is_link($file)) {
+        return ['status' => 'missing', 'issue' => 'The expected JSON file is missing.', 'history' => null];
+    }
     if (!is_file($file) || !is_readable($file)) {
-        return null;
+        return ['status' => 'invalid', 'issue' => 'The expected JSON file cannot be read.', 'history' => null];
     }
 
     $limit = 1024 * 1024;
     $raw = @file_get_contents($file, false, null, 0, $limit + 1);
-    if ($raw === false || strlen($raw) > $limit) {
-        return null;
+    if ($raw === false) {
+        return ['status' => 'invalid', 'issue' => 'Reading the JSON file failed.', 'history' => null];
+    }
+    if (strlen($raw) > $limit) {
+        return ['status' => 'invalid', 'issue' => 'The JSON file exceeds the 1 MiB limit.', 'history' => null];
     }
 
     $data = json_decode($raw, true, 8);
+    if (!is_array($data) || array_is_list($data)) {
+        return ['status' => 'invalid', 'issue' => 'The feed must contain a valid JSON object.', 'history' => null];
+    }
     $source = $data['source'] ?? null;
     $rows = $data['points'] ?? null;
-    if (!is_string($source) || trim($source) === '' || strlen($source) > 150
-        || ($data['currency'] ?? null) !== $currency || !is_array($rows) || !array_is_list($rows) || count($rows) < 2) {
-        return null;
+    if (!is_string($source) || trim($source) === '' || strlen($source) > 150) {
+        return ['status' => 'invalid', 'issue' => 'Set a source name between 1 and 150 bytes.', 'history' => null];
+    }
+    if (($data['currency'] ?? null) !== $currency) {
+        return ['status' => 'invalid', 'issue' => 'The currency must match the catalogue.', 'history' => null];
+    }
+    if (!is_array($rows) || !array_is_list($rows) || count($rows) < 2) {
+        return ['status' => 'invalid', 'issue' => 'The points list needs at least two dated closes.', 'history' => null];
     }
 
     $points = [];
@@ -157,15 +178,24 @@ function market_licensed_history(string $symbol, string $currency): ?array
         $date = $row['date'] ?? null;
         $close = $row['close'] ?? null;
         if (!is_string($date) || preg_match('/^([0-9]{4})-([0-9]{2})-([0-9]{2})$/D', $date, $parts) !== 1
-            || !checkdate((int) $parts[2], (int) $parts[3], (int) $parts[1]) || isset($points[$date])
-            || (!is_int($close) && !is_float($close)) || !is_finite((float) $close) || $close <= 0) {
-            return null;
+            || !checkdate((int) $parts[2], (int) $parts[3], (int) $parts[1])) {
+            return ['status' => 'invalid', 'issue' => 'Every close needs a valid YYYY-MM-DD date.', 'history' => null];
+        }
+        if (isset($points[$date])) {
+            return ['status' => 'invalid', 'issue' => 'The points list contains a duplicate close date.', 'history' => null];
+        }
+        if ((!is_int($close) && !is_float($close)) || !is_finite((float) $close) || $close <= 0) {
+            return ['status' => 'invalid', 'issue' => 'Every close needs a positive numeric value.', 'history' => null];
         }
         $points[$date] = ['date' => $date, 'close' => (float) $close];
     }
     ksort($points, SORT_STRING);
     // With one point per day, this always covers the widest chart range.
-    return ['mode' => 'licensed', 'source' => trim($source), 'points' => array_slice(array_values($points), -370)];
+    return [
+        'status' => 'ready',
+        'issue' => '',
+        'history' => ['mode' => 'licensed', 'source' => trim($source), 'points' => array_slice(array_values($points), -370)],
+    ];
 }
 
 function market_demo_points(string $symbol, array $instrument): array

@@ -35,6 +35,28 @@ Set the database credentials in `config/local.php`, which Git ignores. You can a
 
 Set `community_enabled` to `true` to open the discussion board. Visitors can read it and signed-in members can start discussions, reply, and delete their own posts. The application stores watchlist symbols separately from discussion content.
 
+## Enable the administration console
+
+The console uses the existing member login and a separate administrator role. Apply the admin migrations to a database that already has `database/schema.sql`.
+
+```sh
+cat database/admin-core.sql database/admin-market.sql database/admin-guides.sql database/admin-community.sql |
+    sudo mariadb jsd_enterprises
+```
+
+Create or sign in to the member account you want to promote. From the server checkout, grant it the role using the same database configuration as the site.
+
+```sh
+php bin/admin.php grant your-username
+php bin/admin.php list
+```
+
+Set `admin_enabled` to `true` in `config/local.php`. After signing in, open **Administration** in the sidebar. Use `php bin/admin.php revoke your-username` to remove the role. Disabling the console closes the admin routes while keeping published guides, moderation decisions, and unexpired market notices in effect.
+
+- **Market feed** checks catalogue coverage and labels missing, invalid, future-dated and stale files. `market_stale_days` is a calendar-day threshold. Download the diagnostic CSV to inspect metadata and close dates. Publish a visitor notice with an optional UTC expiry during data maintenance.
+- **Guide desk** saves private drafts, previews them with the public guide layout, and publishes or restores revisions. Set a review-by date to flag content that needs a source check. Repository guides remain the starting point. Published edits and newly published guides are stored in MariaDB, so include the database in backups.
+- **Moderation** can hide and restore discussion topics and replies with an internal reason. The console records operator changes in **Audit log**. Overview shows aggregate counts from the application database.
+
 ## Deploy with Apache
 
 Use [deploy/apache.conf](deploy/apache.conf) as the virtual host template. Substitute your hostname, checkout path, and TLS certificate paths. Point Apache's `DocumentRoot` at the project's `public/` directory and configure Apache to execute PHP via your distribution's PHP-FPM integration or PHP module. Enable the virtual host once the certificate is available. Use HTTPS and set `secure_cookies` to `true` in production, especially if TLS terminates at a reverse proxy.

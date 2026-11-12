@@ -16,8 +16,10 @@ function site_config(): array
         ],
         'registration_enabled' => true,
         'community_enabled' => false,
+        'admin_enabled' => false,
         'secure_cookies' => false,
         'market_data_dir' => '',
+        'market_stale_days' => 5,
         'publish_licensed_api' => false,
     ];
 
@@ -111,6 +113,7 @@ function icon(string $name, int $size = 20): string
         'stack' => '<path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"/>',
         'dollar' => '<path d="M12 2v20m5-16H9a3 3 0 0 0 0 6h6a3 3 0 1 1 0 6H6"/>',
         'bank' => '<path d="m3 8 9-5 9 5v2H3V8Zm2 12h14M7 13v4m5-4v4m5-4v4"/>',
+        'shield' => '<path d="M12 22s7-3 7-10V5l-7-3-7 3v7c0 7 7 10 7 10Z"/><path d="m9 12 2 2 4-4"/>',
         'menu' => '<path d="M4 6h16M4 12h16M4 18h16"/>',
         'plus' => '<path d="M12 5v14M5 12h14"/>',
         'clock' => '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',

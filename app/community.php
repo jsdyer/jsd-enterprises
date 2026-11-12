@@ -4,20 +4,24 @@ declare(strict_types=1);
 
 function community_topics(PDO $db): array
 {
+    $visibleTopic = community_visible_sql($db, 'community_hidden_topics', 't.id');
+    $visibleReply = community_visible_sql($db, 'community_hidden_replies', 'r.id');
     $statement = $db->query(
-        'SELECT t.id, t.title, t.body, t.user_id, t.created_at, u.username,
-                (SELECT COUNT(*) FROM community_replies r WHERE r.topic_id = t.id) AS reply_count
+        "SELECT t.id, t.title, t.body, t.user_id, t.created_at, u.username,
+                (SELECT COUNT(*) FROM community_replies r WHERE r.topic_id = t.id $visibleReply) AS reply_count
          FROM community_topics t JOIN users u ON u.id = t.user_id
-         ORDER BY t.id DESC LIMIT 50'
+         WHERE 1 = 1 $visibleTopic
+         ORDER BY t.id DESC LIMIT 50"
     );
     return $statement->fetchAll();
 }
 
 function community_topic(PDO $db, int $id): ?array
 {
+    $visibleTopic = community_visible_sql($db, 'community_hidden_topics', 't.id');
     $statement = $db->prepare(
-        'SELECT t.id, t.title, t.body, t.user_id, t.created_at, u.username
-         FROM community_topics t JOIN users u ON u.id = t.user_id WHERE t.id = ?'
+        "SELECT t.id, t.title, t.body, t.user_id, t.created_at, u.username
+         FROM community_topics t JOIN users u ON u.id = t.user_id WHERE t.id = ? $visibleTopic"
     );
     $statement->execute([$id]);
     return $statement->fetch() ?: null;
@@ -25,10 +29,12 @@ function community_topic(PDO $db, int $id): ?array
 
 function community_replies(PDO $db, int $topicId): array
 {
+    $visibleTopic = community_visible_sql($db, 'community_hidden_topics', 'r.topic_id');
+    $visibleReply = community_visible_sql($db, 'community_hidden_replies', 'r.id');
     $statement = $db->prepare(
-        'SELECT r.id, r.topic_id, r.body, r.user_id, r.created_at, u.username
+        "SELECT r.id, r.topic_id, r.body, r.user_id, r.created_at, u.username
          FROM community_replies r JOIN users u ON u.id = r.user_id
-         WHERE r.topic_id = ? ORDER BY r.id DESC LIMIT 100'
+         WHERE r.topic_id = ? $visibleTopic $visibleReply ORDER BY r.id DESC LIMIT 100"
     );
     $statement->execute([$topicId]);
     return array_reverse($statement->fetchAll());
@@ -59,14 +65,36 @@ function community_reply(PDO $db, int $userId, int $topicId, string $body): void
     $body = community_body($body, 2000);
     community_limit_writes($db, $userId);
 
+    $visibleTopic = community_visible_sql($db, 'community_hidden_topics', 't.id');
     $statement = $db->prepare(
-        'INSERT INTO community_replies (topic_id, user_id, body)
-         SELECT id, ?, ? FROM community_topics WHERE id = ?'
+        "INSERT INTO community_replies (topic_id, user_id, body)
+         SELECT t.id, ?, ? FROM community_topics t WHERE t.id = ? $visibleTopic"
     );
     $statement->execute([$userId, $body, $topicId]);
     if ($statement->rowCount() === 0) {
         throw new DomainException('This discussion is no longer available.');
     }
+}
+
+function community_moderation_tables(PDO $db): array
+{
+    static $available = new WeakMap();
+    if (!isset($available[$db])) {
+        $statement = $db->query(
+            "SELECT TABLE_NAME FROM information_schema.TABLES
+             WHERE TABLE_SCHEMA = DATABASE()
+               AND TABLE_NAME IN ('community_hidden_topics', 'community_hidden_replies')"
+        );
+        $available[$db] = $statement->fetchAll(PDO::FETCH_COLUMN);
+    }
+    return $available[$db];
+}
+
+function community_visible_sql(PDO $db, string $table, string $postId): string
+{
+    return in_array($table, community_moderation_tables($db), true)
+        ? "AND NOT EXISTS (SELECT 1 FROM $table hidden WHERE hidden.post_id = $postId)"
+        : '';
 }
 
 function community_reply_delete(PDO $db, int $userId, int $topicId, int $replyId): void

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-function render_layout_start(string $page, string $title, ?array $user, bool $boardEnabled, ?array $notice): void
+function render_layout_start(string $page, string $title, ?array $user, bool $boardEnabled, ?array $notice, bool $isAdmin = false): void
 {
     $nav = [
         'markets' => ['Market overview', 'market'],
@@ -12,6 +12,9 @@ function render_layout_start(string $page, string $title, ?array $user, bool $bo
     ];
     if ($boardEnabled) {
         $nav['community'] = ['Community', 'community'];
+    }
+    if ($isAdmin) {
+        $nav['admin'] = ['Administration', 'shield'];
     }
     $active = $page === 'guide' ? 'guides' : $page;
     $search = array_values(array_map(
@@ -28,6 +31,7 @@ function render_layout_start(string $page, string $title, ?array $user, bool $bo
     <meta name="theme-color" content="#111321">
     <title><?= e($title) ?> · JSD Enterprises</title>
     <link rel="stylesheet" href="assets/site.css">
+    <?php if ($page === 'admin' && $isAdmin): ?><link rel="stylesheet" href="assets/admin.css"><?php endif; ?>
     <script src="assets/market.js" defer></script>
 </head>
 <body>

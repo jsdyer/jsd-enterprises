@@ -23,6 +23,11 @@ require_once dirname(__DIR__) . '/app/actions.php';
 require_once dirname(__DIR__) . '/app/layout.php';
 require_once dirname(__DIR__) . '/app/dashboard.php';
 require_once dirname(__DIR__) . '/app/pages.php';
+require_once dirname(__DIR__) . '/app/admin.php';
+require_once dirname(__DIR__) . '/app/admin_layout.php';
+require_once dirname(__DIR__) . '/app/admin_market.php';
+require_once dirname(__DIR__) . '/app/admin_guides.php';
+require_once dirname(__DIR__) . '/app/admin_community.php';
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 if (!in_array($method, ['GET', 'HEAD', 'POST'], true)) {
@@ -42,11 +47,24 @@ try {
 }
 
 $boardEnabled = $config['community_enabled'] && $db !== null;
+$isAdmin = site_admin_is($db, $user, $config['admin_enabled']);
+if ($page === 'admin') {
+    serve_admin($config, $db, $user, $isAdmin, $boardEnabled, $method);
+}
 if ($method === 'POST') {
     handle_action($config, $db, $user, $boardEnabled);
 }
 
 $guides = require dirname(__DIR__) . '/content/guides.php';
+if ($db !== null && in_array($page, ['markets', 'guide', 'guides'], true)) {
+    try {
+        $guides = admin_published_guides($db, $guides);
+    } catch (PDOException $exception) {
+        if (($exception->errorInfo[0] ?? null) !== '42S02') {
+            error_log('JSD published guides unavailable: ' . $exception->getCode());
+        }
+    }
+}
 $guide = $guides[input($_GET, 'guide')] ?? null;
 $symbolQuery = input($_GET, 'symbol');
 $symbol = market_symbol($symbolQuery);
@@ -86,7 +104,17 @@ if ($page === 'markets' && $symbol === null && trim($symbolQuery) !== '') {
     $notice = ['text' => 'No listing matches “' . substr($symbolQuery, 0, 64) . '”. Try RY, ENB, XIU or another ticker below.', 'kind' => 'error'];
 }
 
-render_layout_start($page, $pages[$page] ?? 'Page unavailable', $user, $boardEnabled, $notice);
+render_layout_start($page, $pages[$page] ?? 'Page unavailable', $user, $boardEnabled, $notice, $isAdmin);
+if ($db !== null && in_array($page, ['markets', 'watchlist', 'api-guide'], true)) {
+    $marketNotice = admin_market_notice($db);
+    if ($marketNotice !== null) {
+        ?>
+        <div class="notice market-notice <?= $marketNotice['severity'] === 'warning' ? 'market-warning' : '' ?>">
+            <?= icon('info', 18) ?><span><strong>Market data</strong> <?= e($marketNotice['message']) ?></span>
+        </div>
+        <?php
+    }
+}
 match ($page) {
     'markets' => render_dashboard($symbol ?? market_symbol('^GSPTSE') ?? array_key_first(market_symbols()), $range, input($_GET, 'kind'), $watchlist, $guides),
     'watchlist' => render_watchlist($watchlist, $user, $db !== null),
